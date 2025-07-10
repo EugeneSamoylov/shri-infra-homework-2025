@@ -1,7 +1,7 @@
 name: Release
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: 
 
 jobs:
   release:
@@ -10,7 +10,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -39,3 +39,89 @@ jobs:
           git push origin releases/${{ steps.version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: cr.yandex
+          username: iam
+          password: ${{ secrets.YC_OAUTH_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ steps.version.outputs.version }}
+            cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:latest
+
+      - name: Get changelog
+        id: changelog
+        run: |
+          # Получаем последний тег
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Если тегов нет, берем все коммиты
+          if [ -z "$LATEST_TAG" ]; then
+            CHANGES=$(git log --pretty=format:"- %s")
+          else
+            CHANGES=$(git log $LATEST_TAG..HEAD --pretty=format:"- %s")
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        run: |
+          # Добавляем заголовок новой версии
+          VERSION=${{ steps.version.outputs.version }}
+          DATE=$(date +%Y-%m-%d)
+          HEADER="## Release $VERSION ($DATE)"
+          
+          # Обновляем CHANGELOG
+          echo -e "$HEADER\n\n${{ steps.changelog.outputs.changelog }}\n\n$(cat CHANGELOG.md)" > CHANGELOG.md
+          
+          # Коммитим изменения
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG for release $VERSION"
+          git push origin releases/$VERSION
+
+      - name: Create tag
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          git tag v$VERSION
+          git push origin v$VERSION
+
+      - name: Create release issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          DATE=$(date +%Y-%m-%d)
+          AUTHOR=${{ github.actor }}
+          IMAGE="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:$VERSION"
+          CHANGES=${{ steps.changelog.outputs.changelog }}
+          
+          # Формируем тело issue
+          BODY=$(cat <<EOF
+          **Release Information**
+          - Version: $VERSION
+          - Date: $DATE
+          - Author: $AUTHOR
+          - Docker Image: $IMAGE
+          
+          **Changes:**
+          $CHANGES
+          EOF
+          )
+          
+          # Создаем issue через GitHub API
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/issues \
+            -d "{\"title\":\"Release $VERSION\", \"body\":\"$BODY\"}"
