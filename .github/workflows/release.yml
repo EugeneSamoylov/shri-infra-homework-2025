@@ -1,11 +1,24 @@
 name: Release
 
 on:
-  workflow_dispatch:  # Разрешает ручной запуск
+  workflow_dispatch:  # Ручной запуск
 
 jobs:
-  release:
+  checks:
+    name: Run pre-release checks
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 16
+          
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+
+  create-release:  # Этот job пока пустой
+    needs: checks  # Ждёт успешного завершения проверок
+    runs-on: ubuntu-latest
+    steps: []
