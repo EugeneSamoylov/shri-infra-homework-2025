@@ -89,26 +89,28 @@ jobs:
 
       - name: Create release issue
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          DATE=$(date +%Y-%m-%d)
-          AUTHOR=${{ github.actor }}
-          IMAGE="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:$VERSION"
-          CHANGES=${{ steps.changelog.outputs.changelog }}
-          BODY=$(cat <<EOF
-          **Release Information**
-          - Version: $VERSION
-          - Date: $DATE
-          - Author: $AUTHOR
-          - Docker Image: $IMAGE
-          
-          **Changes:**
-          $CHANGES
-          EOF
-          )
-          curl -X POST \
+            VERSION=${{ steps.version.outputs.version }}
+            DATE=$(date +%Y-%m-%d)
+            AUTHOR=${{ github.actor }}
+            IMAGE="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:$VERSION"
+            
+            # Экранируем специальные символы
+            CHANGES=$(echo '${{ steps.changelog.outputs.changelog }}' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+            
+            # Формируем JSON-тело
+            JSON_BODY=$(cat <<EOF
+            {
+            "title": "Release $VERSION",
+            "body": "**Release Information**\n- Version: $VERSION\n- Date: $DATE\n- Author: $AUTHOR\n- Docker Image: $IMAGE\n\n**Changes:**\n$CHANGES"
+            }
+            EOF
+            )
+            
+            # Создаем issue через GitHub API
+            curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/issues \
-            -d "{\"title\":\"Release $VERSION\", \"body\":\"$BODY\"}"
+            -H "Content-Type: application/json" \
+            -d "$JSON_BODY" \
+            https://api.github.com/repos/${{ github.repository }}/issues
