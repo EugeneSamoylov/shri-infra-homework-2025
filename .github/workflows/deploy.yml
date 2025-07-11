@@ -21,4 +21,4 @@ jobs:
             sudo docker stop shri-app || true
             sudo docker rm shri-app || true
             echo ${{ secrets.YC_OAUTH_TOKEN }} | sudo docker login --username oauth --password-stdin cr.yandex
-            sudo docker run -d --name shri-app -p 80:3000 --restart unless-stopped cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.event.inputs.version }}_latest
+            sudo docker run -d --name shri-app -p 80:3000 --restart unless-stopped cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:latest
