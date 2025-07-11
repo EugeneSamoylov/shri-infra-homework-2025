@@ -14,23 +14,11 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            # Останавливаем старый контейнер
-            sudo docker stop shri-app || true
-            sudo docker rm shri-app || true
-            
-            # Авторизация в Container Registry
-            echo ${{ secrets.YC_OAUTH_TOKEN }} | sudo docker login \
-              --username oauth \
-              --password-stdin \
-              cr.yandex
-            
-            # Запускаем новый контейнер
-            sudo docker run -d \
-              --name shri-app \
-              -p 80:3000 \
-              --restart unless-stopped \
-              cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.event.inputs.version }}_latest
+            host: ${{ secrets.SSH_HOST }}
+            username: root  # Подключаемся как root
+            key: ${{ secrets.SSH_PRIVATE_KEY }}
+            script: |
+                docker stop shri-app || true
+                docker rm shri-app || true
+                echo ${{ secrets.YC_OAUTH_TOKEN }} | docker login --username oauth --password-stdin cr.yandex
+                docker run -d --name shri-app -p 80:3000 --restart unless-stopped cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.event.inputs.version }}_latest
