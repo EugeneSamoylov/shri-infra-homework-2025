@@ -10,7 +10,7 @@ export const Contacts: React.FC = () => {
       <Helmet title="Contacts" />
       <div className="row">
         <div className="col">
-          <h1>Contacts</h1>
+          <h1>Contacts hi</h1>
 
           <p>
             Have a question about our scratchers or need help placing an order?
